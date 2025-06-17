@@ -46,7 +46,7 @@ export const Header: React.FC<HeaderProps> = ({
             <Settings className="w-6 h-6" />
           </button>
         </div>
-        <p className="text-gray-600 dark:text-gray-400 text-center">Stay organized with your daily tasks and testnet task only</p>
+        <p className="text-gray-600 dark:text-gray-400 text-center">Stay organized with your daily tasks and testnet task only.</p>
       </div>
     </>
   );
