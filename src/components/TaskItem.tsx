@@ -1,281 +1,457 @@
-import React, { useState } from 'react';
-import { Check, Edit2, Trash2, Calendar, StickyNote, X, Save, ExternalLink, FileText, Eye, Clock, Users, TestTube, Share2 } from 'lucide-react';
-import { Task, TaskType, TaskStatus, EditingTaskData } from '../types/Task';
+import { useState, useEffect, useCallback } from 'react';
+import { Task, TaskType, TaskStatus, ActiveTab, SortOption, EditingTaskData } from '../types/Task';
+import { 
+  loadTasks, 
+  saveTasks, 
+  getLastResetDate, 
+  setLastResetDate,
+  loadCustomResetTime,
+  saveCustomResetTime,
+  getAllTasksForExport,
+  setAllTasksFromImport,
+  CustomResetTime
+} from '../utils/localStorage';
+import { 
+  getTodayDateString, 
+  shouldResetDailyTasks, 
+  getTimeUntilCustomReset,
+  getResetDateString
+} from '../utils/dateUtils';
 
-interface TaskItemProps {
-  task: Task;
-  isEditing: boolean;
-  editingTaskData: EditingTaskData;
-  onToggle: (id: string) => void;
-  onDelete: (id: string) => void;
-  onStartEdit: (id: string, taskData: EditingTaskData) => void;
-  onSaveEdit: () => void;
-  onCancelEdit: () => void;
-  onEditingTaskDataChange: (data: EditingTaskData) => void;
-  onRequestConfirmComplete: (task: Task) => void;
-}
-
-export const TaskItem: React.FC<TaskItemProps> = ({
-  task,
-  isEditing,
-  editingTaskData,
-  onToggle,
-  onDelete,
-  onStartEdit,
-  onSaveEdit,
-  onCancelEdit,
-  onEditingTaskDataChange,
-  onRequestConfirmComplete
-}) => {
-  const [showFullDescription, setShowFullDescription] = useState(false);
-
-  const handleEditSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSaveEdit();
-  };
-
-  const handleToggleClick = () => {
-    if (task.type === TaskType.DAILY && !task.completed) {
-      onRequestConfirmComplete(task);
-    } else if (task.type === TaskType.NOTE) {
-      onToggle(task.id);
+export const useTasks = () => {
+  // Initialize tasks state with data from localStorage immediately
+  const [tasks, setTasks] = useState<Task[]>(() => {
+    const savedResetTime = loadCustomResetTime();
+    const savedTasks = loadTasks();
+    const lastResetDate = getLastResetDate();
+    
+    if (shouldResetDailyTasks(lastResetDate, savedResetTime.hour, savedResetTime.minute)) {
+      // Automatically reset daily tasks without showing modal
+      const resetTasks = savedTasks.map(task => 
+        task.type === TaskType.DAILY 
+          ? { ...task, completed: false, completedAt: undefined }
+          : task
+      );
+      setLastResetDate(getResetDateString(savedResetTime.hour, savedResetTime.minute));
+      return resetTasks;
+    } else {
+      return savedTasks;
     }
-    // For completed daily tasks, do nothing (cannot uncheck)
-  };
+  });
 
-  const formatTimestamp = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString();
-  };
+  const [activeTab, setActiveTab] = useState<ActiveTab>('daily');
+  const [newTask, setNewTask] = useState('');
+  const [newTaskType, setNewTaskType] = useState<TaskType>(TaskType.DAILY);
+  const [newTaskStatus, setNewTaskStatus] = useState<TaskStatus>(TaskStatus.EARLY);
+  const [newTaskLink, setNewTaskLink] = useState('');
+  const [newTaskDescription, setNewTaskDescription] = useState('');
+  const [showTaskInput, setShowTaskInput] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showConfirmCompleteModal, setShowConfirmCompleteModal] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
+  const [taskToConfirmComplete, setTaskToConfirmComplete] = useState<Task | null>(null);
+  const [editingTask, setEditingTask] = useState<string | null>(null);
+  const [editingTaskData, setEditingTaskData] = useState<EditingTaskData>({ text: '', link: '', socialLink: '', description: '', status: TaskStatus.EARLY });
+  const [customResetTime, setCustomResetTime] = useState<CustomResetTime>({ hour: 0, minute: 0 });
+  const [timeUntilReset, setTimeUntilReset] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortOption, setSortOption] = useState<SortOption>('none');
 
-  const formatLink = (link: string) => {
-    if (!link) return '';
-    return link.startsWith('http') ? link : `https://${link}`;
-  };
+  // Load custom reset time and set up timer
+  useEffect(() => {
+    const savedResetTime = loadCustomResetTime();
+    setCustomResetTime(savedResetTime);
+    setTimeUntilReset(getTimeUntilCustomReset(savedResetTime.hour, savedResetTime.minute));
+  }, []);
 
-  const isValidUrl = (url: string) => {
-    if (!url.trim()) return true;
+  // Update countdown timer
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeUntilReset(getTimeUntilCustomReset(customResetTime.hour, customResetTime.minute));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [customResetTime]);
+
+  // Save tasks whenever tasks change
+  useEffect(() => {
+    saveTasks(tasks);
+  }, [tasks]);
+
+  const resetDailyTasks = useCallback(() => {
+    const savedTasks = loadTasks();
+    const resetTasks = savedTasks.map(task => 
+      task.type === TaskType.DAILY 
+        ? { ...task, completed: false, completedAt: undefined }
+        : task
+    );
+    
+    setTasks(resetTasks);
+    setLastResetDate(getResetDateString(customResetTime.hour, customResetTime.minute));
+  }, [customResetTime]);
+
+  const saveResetTime = useCallback((hour: number, minute: number) => {
+    const newResetTime = { hour, minute };
+    setCustomResetTime(newResetTime);
+    saveCustomResetTime(newResetTime);
+    setTimeUntilReset(getTimeUntilCustomReset(hour, minute));
+  }, []);
+
+  const exportTasksData = useCallback(() => {
     try {
-      new URL(url.startsWith('http') ? url : `https://${url}`);
-      return true;
-    } catch {
-      return false;
+      const allTasks = getAllTasksForExport();
+      const exportData = {
+        tasks: allTasks,
+        customResetTime,
+        exportDate: new Date().toISOString(),
+        version: '1.0'
+      };
+      
+      const dataStr = JSON.stringify(exportData, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `tasks_export_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting tasks:', error);
+      alert('Failed to export tasks. Please try again.');
     }
-  };
+  }, [customResetTime]);
 
-  const getTaskTypeInfo = (type: TaskType) => {
-    switch (type) {
-      case TaskType.DAILY:
-        return { icon: Calendar, label: 'Daily', color: 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-400' };
-      case TaskType.NOTE:
-        return { icon: StickyNote, label: 'Task Only', color: 'bg-purple-100 text-purple-600 dark:bg-purple-900 dark:text-purple-400' };
-      case TaskType.WAITLIST:
-        return { icon: Users, label: 'Waitlist', color: 'bg-orange-100 text-orange-600 dark:bg-orange-900 dark:text-orange-400' };
-      case TaskType.TESTNET:
-        return { icon: TestTube, label: 'Testnet', color: 'bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-400' };
-      case TaskType.SOCIAL_LINKS:
-        return { icon: Share2, label: 'Social Links', color: 'bg-pink-100 text-pink-600 dark:bg-pink-900 dark:text-pink-400' };
+  const importTasksData = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const importData = JSON.parse(content);
+        
+        // Validate import data structure
+        if (!importData || typeof importData !== 'object') {
+          throw new Error('Invalid file format');
+        }
+        
+        let tasksToImport: Task[] = [];
+        let resetTimeToImport: CustomResetTime | null = null;
+        
+        // Handle different export formats
+        if (Array.isArray(importData)) {
+          // Old format: just an array of tasks
+          tasksToImport = importData;
+        } else if (importData.tasks && Array.isArray(importData.tasks)) {
+          // New format: object with tasks and settings
+          tasksToImport = importData.tasks;
+          if (importData.customResetTime) {
+            resetTimeToImport = importData.customResetTime;
+          }
+        } else {
+          throw new Error('No valid tasks found in file');
+        }
+        
+        // Validate tasks structure
+        const isValidTask = (task: any): task is Task => {
+          return task &&
+            typeof task.id === 'string' &&
+            typeof task.text === 'string' &&
+            typeof task.completed === 'boolean' &&
+            (task.type === TaskType.DAILY || task.type === TaskType.NOTE || task.type === TaskType.WAITLIST || task.type === TaskType.TESTNET) &&
+            typeof task.createdAt === 'number';
+        };
+        
+        if (!tasksToImport.every(isValidTask)) {
+          throw new Error('Invalid task data structure');
+        }
+        
+        // Add default status to tasks that don't have it (for backward compatibility)
+        const tasksWithStatus = tasksToImport.map(task => ({
+          ...task,
+          status: task.status || TaskStatus.EARLY
+        }));
+        
+        // Import tasks
+        setAllTasksFromImport(tasksWithStatus);
+        setTasks(tasksWithStatus);
+        
+        // Import reset time if available
+        if (resetTimeToImport) {
+          saveResetTime(resetTimeToImport.hour, resetTimeToImport.minute);
+        }
+        
+        alert(`Successfully imported ${tasksWithStatus.length} tasks!`);
+      } catch (error) {
+        console.error('Error importing tasks:', error);
+        alert('Failed to import tasks. Please check the file format and try again.');
+      }
+    };
+    
+    reader.onerror = () => {
+      alert('Failed to read the file. Please try again.');
+    };
+    
+    reader.readAsText(file);
+    
+    // Reset the input value so the same file can be selected again
+    event.target.value = '';
+  }, [saveResetTime]);
+
+  const addTask = useCallback(() => {
+    if (newTask.trim()) {
+      const task: Task = {
+        id: Date.now().toString(),
+        text: newTask.trim(),
+        completed: false,
+        type: newTaskType,
+        status: newTaskStatus,
+        createdAt: Date.now(),
+        link: newTaskLink.trim() || undefined,
+        description: newTaskDescription.trim() || undefined
+      };
+      
+      setTasks(prev => [...prev, task]);
+      setNewTask('');
+      setNewTaskStatus(TaskStatus.EARLY);
+      setNewTaskLink('');
+      setNewTaskDescription('');
+      setShowTaskInput(false);
+    }
+  }, [newTask, newTaskType, newTaskStatus, newTaskLink, newTaskDescription]);
+
+  const toggleTask = useCallback((id: string) => {
+    setTasks(prev => prev.map(task => 
+      task.id === id 
+        ? { 
+            ...task, 
+            completed: !task.completed,
+            completedAt: !task.completed ? Date.now() : undefined
+          }
+        : task
+    ));
+  }, []);
+
+  const requestConfirmComplete = useCallback((task: Task) => {
+    setTaskToConfirmComplete(task);
+    setShowConfirmCompleteModal(true);
+  }, []);
+
+  const confirmCompleteTask = useCallback(() => {
+    if (taskToConfirmComplete) {
+      toggleTask(taskToConfirmComplete.id);
+      setTaskToConfirmComplete(null);
+    }
+    setShowConfirmCompleteModal(false);
+  }, [taskToConfirmComplete, toggleTask]);
+
+  const cancelConfirmComplete = useCallback(() => {
+    setTaskToConfirmComplete(null);
+    setShowConfirmCompleteModal(false);
+  }, []);
+
+  const deleteTask = useCallback((id: string) => {
+    setTaskToDelete(id);
+    setShowDeleteModal(true);
+  }, []);
+
+  const confirmDelete = useCallback(() => {
+    if (taskToDelete) {
+      setTasks(prev => prev.filter(task => task.id !== taskToDelete));
+      setTaskToDelete(null);
+    }
+    setShowDeleteModal(false);
+  }, [taskToDelete]);
+
+  const startEditing = useCallback((id: string, taskData: EditingTaskData) => {
+    setEditingTask(id);
+    setEditingTaskData(taskData);
+  }, []);
+
+  const saveEdit = useCallback(() => {
+    if (editingTask && editingTaskData.text.trim()) {
+      setTasks(prev => prev.map(task => 
+        task.id === editingTask 
+          ? { 
+              ...task, 
+              text: editingTaskData.text.trim(),
+              status: editingTaskData.status,
+              link: editingTaskData.link.trim() || undefined,
+              socialLink: editingTaskData.socialLink.trim() || undefined,
+              description: editingTaskData.description.trim() || undefined
+            }
+          : task
+      ));
+    }
+    setEditingTask(null);
+    setEditingTaskData({ text: '', link: '', socialLink: '', description: '', status: TaskStatus.EARLY });
+  }, [editingTask, editingTaskData]);
+
+  const cancelEdit = useCallback(() => {
+    setEditingTask(null);
+    setEditingTaskData({ text: '', link: '', socialLink: '', description: '', status: TaskStatus.EARLY });
+  }, []);
+
+  // Filter and sort tasks
+  const getFilteredAndSortedTasks = useCallback(() => {
+    let filtered = tasks.filter(task => task.type === activeTab);
+    
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(task => 
+        task.text.toLowerCase().includes(query) ||
+        (task.link && task.link.toLowerCase().includes(query)) ||
+        (task.socialLink && task.socialLink.toLowerCase().includes(query)) ||
+        (task.description && task.description.toLowerCase().includes(query))
+      );
+    }
+    
+    // Apply completion status filter based on sort option
+    if (sortOption === 'completed') {
+      filtered = filtered.filter(task => task.completed);
+    } else if (sortOption === 'uncompleted') {
+      filtered = filtered.filter(task => !task.completed);
+    }
+    
+    // Apply sorting
+    switch (sortOption) {
+      case 'title-asc':
+        filtered.sort((a, b) => a.text.localeCompare(b.text));
+        break;
+      case 'title-desc':
+        filtered.sort((a, b) => b.text.localeCompare(a.text));
+        break;
+      case 'completed':
+        // No additional sorting needed since we already filtered for completed tasks
+        break;
+      case 'uncompleted':
+        // No additional sorting needed since we already filtered for uncompleted tasks
+        break;
       default:
-        return { icon: Calendar, label: 'Unknown', color: 'bg-gray-100 text-gray-600 dark:bg-gray-900 dark:text-gray-400' };
+        // No sorting
+        break;
     }
+    
+    return filtered;
+  }, [tasks, activeTab, searchQuery, sortOption]);
+
+  // Computed values
+  const filteredTasks = getFilteredAndSortedTasks();
+  const dailyTasks = tasks.filter(task => task.type === TaskType.DAILY);
+  const noteTasks = tasks.filter(task => task.type === TaskType.NOTE);
+  const waitlistTasks = tasks.filter(task => task.type === TaskType.WAITLIST);
+  const testnetTasks = tasks.filter(task => task.type === TaskType.TESTNET);
+  
+  const dailyCompletedCount = dailyTasks.filter(task => task.completed).length;
+  const noteCompletedCount = noteTasks.filter(task => task.completed).length;
+  const waitlistCompletedCount = waitlistTasks.filter(task => task.completed).length;
+  const testnetCompletedCount = testnetTasks.filter(task => task.completed).length;
+  
+  const dailyCompletionRate = dailyTasks.length > 0 
+    ? Math.round((dailyCompletedCount / dailyTasks.length) * 100) 
+    : 0;
+  const noteCompletionRate = noteTasks.length > 0 
+    ? Math.round((noteCompletedCount / noteTasks.length) * 100) 
+    : 0;
+  const waitlistCompletionRate = waitlistTasks.length > 0 
+    ? Math.round((waitlistCompletedCount / waitlistTasks.length) * 100) 
+    : 0;
+  const testnetCompletionRate = testnetTasks.length > 0 
+    ? Math.round((testnetCompletedCount / testnetTasks.length) * 100) 
+    : 0;
+
+  // Calculate streaks
+  const calculateDailyStreak = useCallback(() => {
+    const completedDailyTasks = dailyTasks.filter(task => task.completed);
+    return completedDailyTasks.length;
+  }, [dailyTasks]);
+
+  const calculateNoteStreak = useCallback(() => {
+    const completedNoteTasks = noteTasks.filter(task => task.completed);
+    return completedNoteTasks.length;
+  }, [noteTasks]);
+
+  const calculateWaitlistStreak = useCallback(() => {
+    const completedWaitlistTasks = waitlistTasks.filter(task => task.completed);
+    return completedWaitlistTasks.length;
+  }, [waitlistTasks]);
+
+  const calculateTestnetStreak = useCallback(() => {
+    const completedTestnetTasks = testnetTasks.filter(task => task.completed);
+    return completedTestnetTasks.length;
+  }, [testnetTasks]);
+
+  return {
+    // State
+    tasks: filteredTasks,
+    activeTab,
+    newTask,
+    newTaskType,
+    newTaskStatus,
+    newTaskLink,
+    newTaskDescription,
+    showTaskInput,
+    showSettingsModal,
+    showDeleteModal,
+    showConfirmCompleteModal,
+    editingTask,
+    editingTaskData,
+    timeUntilReset,
+    customResetTime,
+    searchQuery,
+    sortOption,
+    taskToConfirmComplete,
+    
+    // Computed values
+    dailyTasks,
+    noteTasks,
+    waitlistTasks,
+    testnetTasks,
+    dailyCompletedCount,
+    noteCompletedCount,
+    waitlistCompletedCount,
+    testnetCompletedCount,
+    dailyCompletionRate,
+    noteCompletionRate,
+    waitlistCompletionRate,
+    testnetCompletionRate,
+    dailyStreak: calculateDailyStreak(),
+    noteStreak: calculateNoteStreak(),
+    waitlistStreak: calculateWaitlistStreak(),
+    testnetStreak: calculateTestnetStreak(),
+    
+    // Actions
+    setActiveTab,
+    setNewTask,
+    setNewTaskType,
+    setNewTaskStatus,
+    setNewTaskLink,
+    setNewTaskDescription,
+    setShowTaskInput,
+    setShowDeleteModal,
+    setShowSettingsModal,
+    setEditingTaskData,
+    setSearchQuery,
+    setSortOption,
+    resetDailyTasks,
+    saveResetTime,
+    exportTasksData,
+    importTasksData,
+    addTask,
+    toggleTask,
+    deleteTask,
+    confirmDelete,
+    startEditing,
+    saveEdit,
+    cancelEdit,
+    requestConfirmComplete,
+    confirmCompleteTask,
+    cancelConfirmComplete
   };
-
-  const getStatusInfo = (status: TaskStatus) => {
-    switch (status) {
-      case TaskStatus.EARLY:
-        return { label: 'Early', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300' };
-      case TaskStatus.ONGOING:
-        return { label: 'Ongoing', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' };
-      case TaskStatus.ENDED:
-        return { label: 'Ended', color: 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300' };
-      default:
-        return { label: 'Unknown', color: 'bg-gray-100 text-gray-600 dark:bg-gray-900 dark:text-gray-400' };
-    }
-  };
-
-  const canToggle = task.type === TaskType.NOTE || (task.type === TaskType.DAILY && !task.completed);
-  const taskTypeInfo = getTaskTypeInfo(task.type);
-  const statusInfo = getStatusInfo(task.status);
-  const TaskTypeIcon = taskTypeInfo.icon;
-
-  return (
-    <div className={`bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 transition-all hover:shadow-md ${
-      task.completed ? 'opacity-75' : ''
-    }`}>
-      <div className="p-4">
-        <div className="flex items-start gap-3">
-          <button
-            onClick={handleToggleClick}
-            disabled={!canToggle}
-            className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all mt-1 ${
-              task.completed
-                ? 'bg-green-500 border-green-500 text-white'
-                : canToggle
-                ? 'border-gray-300 hover:border-green-400'
-                : 'border-gray-200 cursor-not-allowed opacity-50'
-            }`}
-          >
-            {task.completed && <Check className="w-4 h-4" />}
-          </button>
-
-          <div className="flex-1 min-w-0">
-            {isEditing ? (
-              <form onSubmit={handleEditSubmit} className="space-y-3">
-                <input
-                  type="text"
-                  value={editingTaskData.text}
-                  onChange={(e) => onEditingTaskDataChange({ ...editingTaskData, text: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                  placeholder="Task title"
-                  required
-                />
-                
-                <select
-                  value={editingTaskData.status}
-                  onChange={(e) => onEditingTaskDataChange({ ...editingTaskData, status: e.target.value as TaskStatus })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                >
-                  <option value={TaskStatus.EARLY}>Early</option>
-                  <option value={TaskStatus.ONGOING}>Ongoing</option>
-                  <option value={TaskStatus.ENDED}>Ended</option>
-                </select>
-                
-                <input
-                  type="url"
-                  value={editingTaskData.link}
-                  onChange={(e) => onEditingTaskDataChange({ ...editingTaskData, link: e.target.value })}
-                  className={`w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none ${
-                    editingTaskData.link && !isValidUrl(editingTaskData.link)
-                      ? 'border-red-300 bg-red-50 dark:border-red-600 dark:bg-red-900/20'
-                      : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200'
-                  }`}
-                  placeholder="Website Link (optional)"
-                />
-                
-                <textarea
-                  value={editingTaskData.description}
-                  onChange={(e) => onEditingTaskDataChange({ ...editingTaskData, description: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-vertical"
-                  placeholder="Description (optional)"
-                  rows={3}
-                />
-                
-                <div className="flex gap-2">
-                  <button
-                    type="submit"
-                    disabled={!editingTaskData.text.trim() || (editingTaskData.link && !isValidUrl(editingTaskData.link))}
-                    className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Save className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onCancelEdit}
-                    className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 rounded"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <div className="space-y-2">
-                {/* Task Title and Type */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`font-medium ${task.completed ? 'line-through text-gray-500 dark:text-gray-400' : 'text-gray-800 dark:text-gray-200'}`}>
-                    {task.text}
-                  </span>
-                  <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${taskTypeInfo.color}`}>
-                    <TaskTypeIcon className="w-3 h-3" />
-                    {taskTypeInfo.label}
-                  </span>
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
-                    {statusInfo.label}
-                  </span>
-                </div>
-
-                {/* Link */}
-                {task.link && (
-                  <div className="flex items-center gap-2">
-                    <ExternalLink className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                    <a
-                      href={formatLink(task.link)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline text-sm break-all"
-                    >
-                      {task.link}
-                    </a>
-                  </div>
-                )}
-
-                {/* Description */}
-                {task.description && (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        {task.type === TaskType.SOCIAL_LINKS ? 'Social Links:' : 'Description:'}
-                      </span>
-                      <button
-                        onClick={() => setShowFullDescription(!showFullDescription)}
-                        className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-sm"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <div className={`text-sm text-gray-600 ${
-                      showFullDescription ? '' : 'line-clamp-2'
-                    }`}>
-                      {showFullDescription ? (
-                        <div className="whitespace-pre-wrap bg-gray-50 dark:bg-gray-700 p-3 rounded border border-gray-200 dark:border-gray-600">
-                          {task.description}
-                        </div>
-                      ) : (
-                        <p className="truncate">{task.description}</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Timestamps */}
-                <div className="flex flex-col gap-1 text-xs text-gray-500 dark:text-gray-400">
-                  <div className="flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    <span>Added: {formatTimestamp(task.createdAt)}</span>
-                  </div>
-                  {task.type === TaskType.DAILY && task.completedAt && (
-                    <div className="flex items-center gap-1">
-                      <Check className="w-3 h-3" />
-                      <span>Last Completed: {formatTimestamp(task.completedAt)}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {!isEditing && (
-            <div className="flex gap-1">
-              <button
-                onClick={() => onStartEdit(task.id, {
-                  text: task.text,
-                  status: task.status,
-                  link: task.link || '',
-                  description: task.description || ''
-                })}
-                className="p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
-              >
-                <Edit2 className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => onDelete(task.id)}
-                className="p-2 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
 };
