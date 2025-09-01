@@ -44,6 +44,7 @@ export const useTasks = () => {
   const [newTaskType, setNewTaskType] = useState<TaskType>(TaskType.DAILY);
   const [newTaskStatus, setNewTaskStatus] = useState<TaskStatus>(TaskStatus.EARLY);
   const [newTaskLink, setNewTaskLink] = useState('');
+  const [newTaskSocialLink, setNewTaskSocialLink] = useState('');
   const [newTaskDescription, setNewTaskDescription] = useState('');
   const [showTaskInput, setShowTaskInput] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -52,7 +53,7 @@ export const useTasks = () => {
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
   const [taskToConfirmComplete, setTaskToConfirmComplete] = useState<Task | null>(null);
   const [editingTask, setEditingTask] = useState<string | null>(null);
-  const [editingTaskData, setEditingTaskData] = useState<EditingTaskData>({ text: '', link: '', description: '', status: TaskStatus.EARLY });
+  const [editingTaskData, setEditingTaskData] = useState<EditingTaskData>({ text: '', link: '', socialLink: '', description: '', status: TaskStatus.EARLY });
   const [customResetTime, setCustomResetTime] = useState<CustomResetTime>({ hour: 0, minute: 0 });
   const [timeUntilReset, setTimeUntilReset] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
@@ -213,6 +214,7 @@ export const useTasks = () => {
         status: newTaskStatus,
         createdAt: Date.now(),
         link: newTaskLink.trim() || undefined,
+        socialLink: newTaskSocialLink.trim() || undefined,
         description: newTaskDescription.trim() || undefined
       };
       
@@ -220,6 +222,7 @@ export const useTasks = () => {
       setNewTask('');
       setNewTaskStatus(TaskStatus.EARLY);
       setNewTaskLink('');
+      setNewTaskSocialLink('');
       setNewTaskDescription('');
       setShowTaskInput(false);
     }
@@ -282,18 +285,19 @@ export const useTasks = () => {
               text: editingTaskData.text.trim(),
               status: editingTaskData.status,
               link: editingTaskData.link.trim() || undefined,
+              socialLink: editingTaskData.socialLink.trim() || undefined,
               description: editingTaskData.description.trim() || undefined
             }
           : task
       ));
     }
     setEditingTask(null);
-    setEditingTaskData({ text: '', link: '', description: '', status: TaskStatus.EARLY });
+    setEditingTaskData({ text: '', link: '', socialLink: '', description: '', status: TaskStatus.EARLY });
   }, [editingTask, editingTaskData]);
 
   const cancelEdit = useCallback(() => {
     setEditingTask(null);
-    setEditingTaskData({ text: '', link: '', description: '', status: TaskStatus.EARLY });
+    setEditingTaskData({ text: '', link: '', socialLink: '', description: '', status: TaskStatus.EARLY });
   }, []);
 
   // Filter and sort tasks
@@ -306,6 +310,7 @@ export const useTasks = () => {
       filtered = filtered.filter(task => 
         task.text.toLowerCase().includes(query) ||
         (task.link && task.link.toLowerCase().includes(query)) ||
+        (task.socialLink && task.socialLink.toLowerCase().includes(query)) ||
         (task.description && task.description.toLowerCase().includes(query))
       );
     }
@@ -345,11 +350,13 @@ export const useTasks = () => {
   const noteTasks = tasks.filter(task => task.type === TaskType.NOTE);
   const waitlistTasks = tasks.filter(task => task.type === TaskType.WAITLIST);
   const testnetTasks = tasks.filter(task => task.type === TaskType.TESTNET);
+  const socialLinksTasks = tasks.filter(task => task.type === TaskType.SOCIAL_LINKS);
   
   const dailyCompletedCount = dailyTasks.filter(task => task.completed).length;
   const noteCompletedCount = noteTasks.filter(task => task.completed).length;
   const waitlistCompletedCount = waitlistTasks.filter(task => task.completed).length;
   const testnetCompletedCount = testnetTasks.filter(task => task.completed).length;
+  const socialLinksCompletedCount = socialLinksTasks.filter(task => task.completed).length;
   
   const dailyCompletionRate = dailyTasks.length > 0 
     ? Math.round((dailyCompletedCount / dailyTasks.length) * 100) 
@@ -362,6 +369,9 @@ export const useTasks = () => {
     : 0;
   const testnetCompletionRate = testnetTasks.length > 0 
     ? Math.round((testnetCompletedCount / testnetTasks.length) * 100) 
+    : 0;
+  const socialLinksCompletionRate = socialLinksTasks.length > 0 
+    ? Math.round((socialLinksCompletedCount / socialLinksTasks.length) * 100) 
     : 0;
 
   // Calculate streaks
@@ -385,6 +395,11 @@ export const useTasks = () => {
     return completedTestnetTasks.length;
   }, [testnetTasks]);
 
+  const calculateSocialLinksStreak = useCallback(() => {
+    const completedSocialLinksTasks = socialLinksTasks.filter(task => task.completed);
+    return completedSocialLinksTasks.length;
+  }, [socialLinksTasks]);
+
   return {
     // State
     tasks: filteredTasks,
@@ -393,6 +408,7 @@ export const useTasks = () => {
     newTaskType,
     newTaskStatus,
     newTaskLink,
+    newTaskSocialLink,
     newTaskDescription,
     showTaskInput,
     showSettingsModal,
@@ -411,18 +427,22 @@ export const useTasks = () => {
     noteTasks,
     waitlistTasks,
     testnetTasks,
+    socialLinksTasks,
     dailyCompletedCount,
     noteCompletedCount,
     waitlistCompletedCount,
     testnetCompletedCount,
+    socialLinksCompletedCount,
     dailyCompletionRate,
     noteCompletionRate,
     waitlistCompletionRate,
     testnetCompletionRate,
+    socialLinksCompletionRate,
     dailyStreak: calculateDailyStreak(),
     noteStreak: calculateNoteStreak(),
     waitlistStreak: calculateWaitlistStreak(),
     testnetStreak: calculateTestnetStreak(),
+    socialLinksStreak: calculateSocialLinksStreak(),
     
     // Actions
     setActiveTab,
@@ -430,6 +450,7 @@ export const useTasks = () => {
     setNewTaskType,
     setNewTaskStatus,
     setNewTaskLink,
+    setNewTaskSocialLink,
     setNewTaskDescription,
     setShowTaskInput,
     setShowDeleteModal,
