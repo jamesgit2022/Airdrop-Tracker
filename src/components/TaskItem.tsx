@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, Edit2, Trash2, Calendar, StickyNote, X, Save, ExternalLink, FileText, Eye, Clock, Users, TestTube } from 'lucide-react';
+import { Check, Edit2, Trash2, Calendar, StickyNote, X, Save, ExternalLink, FileText, Eye, Clock, Users, TestTube, Share2 } from 'lucide-react';
 import { Task, TaskType, TaskStatus, EditingTaskData } from '../types/Task';
 
 interface TaskItemProps {
@@ -72,6 +72,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
         return { icon: Users, label: 'Waitlist', color: 'bg-orange-100 text-orange-600 dark:bg-orange-900 dark:text-orange-400' };
       case TaskType.TESTNET:
         return { icon: TestTube, label: 'Testnet', color: 'bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-400' };
+      case TaskType.SOCIAL_LINKS:
+        return { icon: Share2, label: 'Social Links', color: 'bg-pink-100 text-pink-600 dark:bg-pink-900 dark:text-pink-400' };
       default:
         return { icon: Calendar, label: 'Unknown', color: 'bg-gray-100 text-gray-600 dark:bg-gray-900 dark:text-gray-400' };
     }
@@ -146,7 +148,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
                       ? 'border-red-300 bg-red-50 dark:border-red-600 dark:bg-red-900/20'
                       : 'border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200'
                   }`}
-                  placeholder="Link (optional)"
+                  placeholder="Website Link (optional)"
                 />
                 
                 <textarea
@@ -210,7 +212,9 @@ export const TaskItem: React.FC<TaskItemProps> = ({
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <FileText className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Description:</span>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {task.type === TaskType.SOCIAL_LINKS ? 'Social Links:' : 'Description:'}
+                      </span>
                       <button
                         onClick={() => setShowFullDescription(!showFullDescription)}
                         className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-sm"

@@ -1,5 +1,5 @@
 import React from 'react';
-import { TrendingUp, Calendar, StickyNote, Clock, Users, TestTube } from 'lucide-react';
+import { TrendingUp, Calendar, StickyNote, Clock, Users, TestTube, Share2 } from 'lucide-react';
 import { ActiveTab } from '../types/Task';
 import { formatTime } from '../utils/dateUtils';
 
@@ -9,10 +9,12 @@ interface StatsProps {
   noteCompletionRate: number;
   waitlistCompletionRate: number;
   testnetCompletionRate: number;
+  socialLinksCompletionRate: number;
   dailyStreak: number;
   noteStreak: number;
   waitlistStreak: number;
   testnetStreak: number;
+  socialLinksStreak: number;
   timeUntilReset: number;
 }
 
@@ -22,10 +24,12 @@ export const Stats: React.FC<StatsProps> = ({
   noteCompletionRate,
   waitlistCompletionRate,
   testnetCompletionRate,
+  socialLinksCompletionRate,
   dailyStreak,
   noteStreak,
   waitlistStreak,
   testnetStreak,
+  socialLinksStreak,
   timeUntilReset
 }) => {
   const getCurrentCompletionRate = () => {
@@ -34,6 +38,7 @@ export const Stats: React.FC<StatsProps> = ({
       case 'note': return noteCompletionRate;
       case 'waitlist': return waitlistCompletionRate;
       case 'testnet': return testnetCompletionRate;
+      case 'social_links': return socialLinksCompletionRate;
       default: return 0;
     }
   };
@@ -44,6 +49,7 @@ export const Stats: React.FC<StatsProps> = ({
       case 'note': return noteStreak;
       case 'waitlist': return waitlistStreak;
       case 'testnet': return testnetStreak;
+      case 'social_links': return socialLinksStreak;
       default: return 0;
     }
   };
@@ -58,6 +64,8 @@ export const Stats: React.FC<StatsProps> = ({
         return { icon: Users, label: 'Waitlist', color: 'text-orange-600 dark:text-orange-400' };
       case 'testnet': 
         return { icon: TestTube, label: 'Testnet', color: 'text-green-600 dark:text-green-400' };
+      case 'social_links': 
+        return { icon: Share2, label: 'Social Links', color: 'text-pink-600 dark:text-pink-400' };
       default: 
         return { icon: Calendar, label: 'Unknown', color: 'text-gray-600 dark:text-gray-400' };
     }

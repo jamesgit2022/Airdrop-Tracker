@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Calendar, StickyNote, FileText, X, Link as LinkIcon, Users, TestTube } from 'lucide-react';
+import { Plus, Calendar, StickyNote, FileText, X, Save, ExternalLink, Clock, Users, TestTube, Share2 } from 'lucide-react';
 import { TaskType, TaskStatus } from '../types/Task';
 
 interface TaskInputFormProps {
@@ -81,7 +81,7 @@ export const TaskInputForm: React.FC<TaskInputFormProps> = ({
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Task Type
         </label>
-        <div className="grid grid-cols-2 md:grid-cols-4 bg-gray-100 dark:bg-gray-700 rounded-lg p-1 gap-1">
+        <div className="grid grid-cols-2 md:grid-cols-5 bg-gray-100 dark:bg-gray-700 rounded-lg p-1 gap-1">
           <button
             type="button"
             onClick={() => onTaskTypeChange(TaskType.DAILY)}
@@ -130,6 +130,18 @@ export const TaskInputForm: React.FC<TaskInputFormProps> = ({
             <TestTube className="w-4 h-4" />
             Testnet
           </button>
+          <button
+            type="button"
+            onClick={() => onTaskTypeChange(TaskType.SOCIAL_LINKS)}
+            className={`flex items-center gap-1 px-2 py-2 rounded-md text-xs font-medium transition-all justify-center ${
+              newTaskType === TaskType.SOCIAL_LINKS
+                ? 'bg-white dark:bg-gray-600 text-pink-600 dark:text-pink-400 shadow-sm'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+            }`}
+          >
+            <Share2 className="w-4 h-4" />
+            Social Links
+          </button>
         </div>
       </div>
 
@@ -153,7 +165,7 @@ export const TaskInputForm: React.FC<TaskInputFormProps> = ({
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           <LinkIcon className="w-4 h-4 inline mr-1" />
-          Link (optional)
+          Website Link (optional)
         </label>
         <input
           type="url"
@@ -175,12 +187,12 @@ export const TaskInputForm: React.FC<TaskInputFormProps> = ({
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           <FileText className="w-4 h-4 inline mr-1" />
-          Description/Instructions *
+          {newTaskType === TaskType.SOCIAL_LINKS ? 'Social Media Links *' : 'Description/Instructions *'}
         </label>
         <textarea
           value={newTaskDescription}
           onChange={(e) => onTaskDescriptionChange(e.target.value)}
-          placeholder="Add detailed instructions or notes..."
+          placeholder={newTaskType === TaskType.SOCIAL_LINKS ? 'Add social media links (Twitter, Discord, Telegram, etc.)...' : 'Add detailed instructions or notes...'}
           rows={3}
           className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:placeholder-gray-400 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all resize-vertical"
           required

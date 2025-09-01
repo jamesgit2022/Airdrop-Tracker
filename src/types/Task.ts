@@ -14,7 +14,8 @@ export enum TaskType {
   DAILY = 'daily',
   NOTE = 'note',
   WAITLIST = 'waitlist',
-  TESTNET = 'testnet'
+  TESTNET = 'testnet',
+  SOCIAL_LINKS = 'social_links'
 }
 
 export enum TaskStatus {
@@ -23,7 +24,7 @@ export enum TaskStatus {
   ENDED = 'ended'
 }
 
-export type ActiveTab = 'daily' | 'note' | 'waitlist' | 'testnet';
+export type ActiveTab = 'daily' | 'note' | 'waitlist' | 'testnet' | 'social_links';
 
 export type SortOption = 'none' | 'title-asc' | 'title-desc' | 'completed' | 'uncompleted';
 

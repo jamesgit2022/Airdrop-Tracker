@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, StickyNote, Users, TestTube } from 'lucide-react';
+import { Calendar, StickyNote, Users, TestTube, Share2 } from 'lucide-react';
 import { ActiveTab } from '../types/Task';
 
 interface TabNavigationProps {
@@ -9,6 +9,7 @@ interface TabNavigationProps {
   noteCount: number;
   waitlistCount: number;
   testnetCount: number;
+  socialLinksCount: number;
 }
 
 export const TabNavigation: React.FC<TabNavigationProps> = ({
@@ -18,9 +19,10 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
   noteCount,
   waitlistCount,
   testnetCount
+  socialLinksCount
 }) => {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 bg-gray-100 dark:bg-gray-700 rounded-lg p-1 mb-6 gap-1">
+    <div className="grid grid-cols-2 md:grid-cols-5 bg-gray-100 dark:bg-gray-700 rounded-lg p-1 mb-6 gap-1">
       <button
         onClick={() => onTabChange('daily')}
         className={`flex items-center justify-center gap-2 py-3 px-2 md:px-4 rounded-md font-medium transition-all text-sm ${
@@ -75,6 +77,20 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({
         <span className="hidden sm:inline">Testnet</span>
         <span className="bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 text-xs px-2 py-1 rounded-full">
           {testnetCount}
+        </span>
+      </button>
+      <button
+        onClick={() => onTabChange('social_links')}
+        className={`flex items-center justify-center gap-2 py-3 px-2 md:px-4 rounded-md font-medium transition-all text-sm ${
+          activeTab === 'social_links'
+            ? 'bg-white dark:bg-gray-600 text-pink-600 dark:text-pink-400 shadow-sm'
+            : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+        }`}
+      >
+        <Share2 className="w-4 h-4" />
+        <span className="hidden sm:inline">Social</span>
+        <span className="bg-pink-100 dark:bg-pink-900 text-pink-600 dark:text-pink-400 text-xs px-2 py-1 rounded-full">
+          {socialLinksCount}
         </span>
       </button>
     </div>
